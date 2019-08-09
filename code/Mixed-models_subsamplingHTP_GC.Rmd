@@ -1,0 +1,626 @@
+---
+title: "Mixed-models with subsampling from HTP - GC"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F)
+library(asreml)
+library(plotrix)
+library(psych)
+library(tidyverse)
+````
+
+TESTING MODELS - comparing ORTHOMOSAIC with ORTHORECITIFIED PHOTOS (w/ subsampling)
+
+HYPOTHESIS:  the raw orthorectified images caputure additional plot level information that is lost during the pixel blending process during orthomosaic generation
+
+PREDICTION:  models that incorportate the plot level subsampling from orthophotos will have higher heritability estimates than eqivalent models using the orthomosaic (single plot level value)
+
+```{r}
+## Function to extract Variances
+getVariance = function(asr, comp){
+	var = summary(asr)$varcomp
+	idx = which(rownames(var)==comp)
+	v = var$component[idx]
+	print(paste("variance component", v))
+	return(v)
+}
+
+reps=2 ## number of reps
+trts=2 ## number of treatments
+```
+
+TRAIT: GROUND COVER
+
+```{r, warning=FALSE}
+## Load plot table
+setwd("~/Documents/PhD_KSU/PhD_Documments/POLAND_LAB/LAB_Papers/XWang et al, 2019/20190601/GC")
+plot <- read.csv("plot_19BYD2.csv", header=TRUE, check.names=FALSE)
+## convert variables to factors
+plot <- plot %>%
+  as.tibble() %>%
+  mutate_at(vars(plot_id:treatment),as.factor)
+plot <- plot[,c(1,3:5,10,20)]
+colnames(plot) <- c("plot_id","row","column","entry","rep","trt")
+```
+
+REDUCED MODELS: untreated replications only
+
+MODEL: orthomosaic
+
+```{r, warning=FALSE}
+## Load GC data
+setwd("~/Documents/PhD_KSU/PhD_Documments/POLAND_LAB/LAB_Papers/XWang et al, 2019/20190601/GC")
+ortho <- read.csv("2018_GroundCoverRate_om.csv", header=TRUE, check.names=FALSE)
+colnames(ortho) <- tolower(colnames(ortho))
+ortho <- merge(plot, ortho, by='plot_id')
+```
+
+```{r}
+## 2018-10-03
+asr <- asreml(fixed = mean20181003 ~ 1 , random =  ~id(entry) + ~id(rep) + ~id(rep):(row) + ~id(rep):(column), data=ortho, maxit=20, subset=trt=='Untreated') 
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Ve <- getVariance(asr, 'units!R')
+h11 <-round(Vg/(Vg + Ve/reps),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed11 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-11
+asr <- asreml(fixed = mean20181011 ~ 1 , random =  ~id(entry) + ~id(rep) + ~id(rep):(row) + ~id(rep):(column), data=ortho, maxit=20, subset=trt=='Untreated') 
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Ve <- getVariance(asr, 'units!R')
+h12 <-round(Vg/(Vg + Ve/reps),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed12 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-21
+asr <- asreml(fixed = mean20181021 ~ 1 , random =  ~id(entry) + ~id(rep) + ~id(rep):(row) + ~id(rep):(column), data=ortho, maxit=20, subset=trt=='Untreated') 
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Ve <- getVariance(asr, 'units!R')
+h13 <-round(Vg/(Vg + Ve/reps),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed13 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-11-03
+asr <- asreml(fixed = mean20181103 ~ 1 , random =  ~id(entry) + ~id(rep) + ~id(rep):(row) + ~id(rep):(column), data=ortho, maxit=20, subset=trt=='Untreated') 
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Ve <- getVariance(asr, 'units!R')
+h14 <-round(Vg/(Vg + Ve/reps),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed14 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+\  
+\  
+\  
+\ 
+
+MODEL: averaged subsamples
+
+```{r}
+## 2018-10-03
+setwd("~/Documents/PhD_KSU/PhD_Documments/POLAND_LAB/LAB_Papers/XWang et al, 2019/20190601/GC")
+photo1 <- read.csv("20181003_Ash_BYD2_GroundCoverRate_or.csv", header=TRUE, check.names=FALSE)
+colnames(photo1) <- tolower(colnames(photo1))
+photo1 <- merge(plot, photo1, by='plot_id', suffixes = c("", ".y"))
+plot.mean1 <- aggregate(photo1$mean, list(photo1$plot_id), mean)
+colnames(plot.mean1) <- c('plot_id', 'mean')
+plot.mean1 <- merge(plot, plot.mean1)
+
+asr <- asreml(fixed= mean ~ 1 , random = ~id(entry) + ~id(rep) + ~id(rep):(row) + ~id(rep):(column), data=plot.mean1, maxit=60, subset= trt=='Untreated')
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Ve <- getVariance(asr, 'units!R')
+h21 <- round(Vg/(Vg + Ve/reps),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed21 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-11
+setwd("~/Documents/PhD_KSU/PhD_Documments/POLAND_LAB/LAB_Papers/XWang et al, 2019/20190601/GC")
+photo2 <- read.csv("20181011_Ash_BYD2_GroundCoverRate_or.csv", header=TRUE, check.names=FALSE)
+colnames(photo2) <- tolower(colnames(photo2))
+photo2 <- merge(plot, photo2, by='plot_id', suffixes = c("", ".y"))
+plot.mean2 <- aggregate(photo2$mean, list(photo2$plot_id), mean)
+colnames(plot.mean2) <- c('plot_id', 'mean')
+plot.mean2 <- merge(plot, plot.mean2)
+
+asr <- asreml(fixed= mean ~ 1 , random = ~id(entry) + ~id(rep) + ~id(rep):(row) + ~id(rep):(column), data=plot.mean2, maxit=60, subset= trt=='Untreated')
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Ve <- getVariance(asr, 'units!R')
+h22 <- round(Vg/(Vg + Ve/reps),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed22 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-21
+setwd("~/Documents/PhD_KSU/PhD_Documments/POLAND_LAB/LAB_Papers/XWang et al, 2019/20190601/GC")
+photo3 <- read.csv("20181021_Ash_BYD2_GroundCoverRate_or.csv", header=TRUE, check.names=FALSE)
+colnames(photo3) <- tolower(colnames(photo3))
+photo3 <- merge(plot, photo3, by='plot_id', suffixes = c("", ".y"))
+plot.mean3 <- aggregate(photo3$mean, list(photo3$plot_id), mean)
+colnames(plot.mean3) <- c('plot_id', 'mean')
+plot.mean3 <- merge(plot, plot.mean3)
+
+asr <- asreml(fixed= mean ~ 1 , random = ~id(entry) + ~id(rep) + ~id(rep):(row) + ~id(rep):(column), data=plot.mean3, maxit=60, subset= trt=='Untreated')
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Ve <- getVariance(asr, 'units!R')
+h23 <- round(Vg/(Vg + Ve/reps),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed23 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-11-03
+setwd("~/Documents/PhD_KSU/PhD_Documments/POLAND_LAB/LAB_Papers/XWang et al, 2019/20190601/GC")
+photo4 <- read.csv("20181103_Ash_BYD2_GroundCoverRate_or.csv", header=TRUE, check.names=FALSE)
+colnames(photo4) <- tolower(colnames(photo4))
+photo4 <- merge(plot, photo4, by='plot_id', suffixes = c("", ".y"))
+plot.mean4 <- aggregate(photo4$mean, list(photo4$plot_id), mean)
+colnames(plot.mean4) <- c('plot_id', 'mean')
+plot.mean4 <- merge(plot, plot.mean4)
+
+asr <- asreml(fixed= mean ~ 1 , random = ~id(entry) + ~id(rep) + ~id(rep):(row) + ~id(rep):(column), data=plot.mean4, maxit=60, subset= trt=='Untreated')
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Ve <- getVariance(asr, 'units!R')
+h24 <- round(Vg/(Vg + Ve/reps),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed24 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+\  
+\  
+\  
+\ 
+
+MODEL: orthophoto (with subsampling)
+
+```{r}
+## 2018-10-03
+asr <- asreml(fixed = mean ~ 1, random =  ~id(entry) + ~id(rep) + ~id(rep):(row) + ~id(rep):(column) + ~id(rep):(row):(column):(entry), data=photo1, maxit=20, subset= trt=='Untreated') 
+summary(asr)$varcomp
+
+hm <- harmonic.mean(summary(photo1$plot_id))
+Vg <- getVariance(asr, 'entry')
+Vd <- getVariance(asr, 'rep:row:column:entry')
+Ve <- getVariance(asr, 'units!R')
+h31 <- round(Vg/(Vg + Vd/(reps) + Ve/(reps*hm)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed31 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-11
+asr <- asreml(fixed = mean ~ 1, random =  ~id(entry) + ~id(rep) + ~id(rep):(row) + ~id(rep):(column) + ~id(rep):(row):(column):(entry), data=photo2, maxit=20, subset= trt=='Untreated') 
+summary(asr)$varcomp
+
+hm <- harmonic.mean(summary(photo1$plot_id))
+Vg <- getVariance(asr, 'entry')
+Vd <- getVariance(asr, 'rep:row:column:entry')
+Ve <- getVariance(asr, 'units!R')
+h32 <- round(Vg/(Vg + Vd/(reps) + Ve/(reps*hm)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed32 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-21
+asr <- asreml(fixed = mean ~ 1, random =  ~id(entry) + ~id(rep) + ~id(rep):(row) + ~id(rep):(column) + ~id(rep):(row):(column):(entry), data=photo3, maxit=20, subset= trt=='Untreated') 
+summary(asr)$varcomp
+
+hm <- harmonic.mean(summary(photo1$plot_id))
+Vg <- getVariance(asr, 'entry')
+Vd <- getVariance(asr, 'rep:row:column:entry')
+Ve <- getVariance(asr, 'units!R')
+h33 <- round(Vg/(Vg + Vd/(reps) + Ve/(reps*hm)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed33 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-11-03
+asr <- asreml(fixed = mean ~ 1, random =  ~id(entry) + ~id(rep) + ~id(rep):(row) + ~id(rep):(column) + ~id(rep):(row):(column):(entry), data=photo4, maxit=20, subset= trt=='Untreated') 
+summary(asr)$varcomp
+
+hm <- harmonic.mean(summary(photo1$plot_id))
+Vg <- getVariance(asr, 'entry')
+Vd <- getVariance(asr, 'rep:row:column:entry')
+Ve <- getVariance(asr, 'units!R')
+h34 <- round(Vg/(Vg + Vd/(reps) + Ve/(reps*hm)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed34 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+\  
+\  
+\  
+\ 
+
+MODEL: orthophoto (with subsampling + image effect)
+
+```{r}
+## 2018-10-03
+asr = asreml(fixed= mean ~ 1, random =  ~id(entry) + ~id(rep) + ~id(original_file), data=photo1, maxit=60, subset= trt=='Untreated')
+summary(asr)$varcomp
+
+hm <- harmonic.mean(summary(photo1$plot_id))
+Vg <- getVariance(asr, 'entry')
+Vi <- getVariance(asr, 'original_file')
+Ve <- getVariance(asr, 'units!R')
+h41 <- round(Vg/(Vg + Vi/(reps) + Ve/(reps*hm)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed41 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-11
+asr = asreml(fixed= mean ~ 1, random =  ~id(entry) + ~id(rep) + ~id(original_file), data=photo2, maxit=60, subset= trt=='Untreated')
+summary(asr)$varcomp
+
+hm <- harmonic.mean(summary(photo1$plot_id))
+Vg <- getVariance(asr, 'entry')
+Vi <- getVariance(asr, 'original_file')
+Ve <- getVariance(asr, 'units!R')
+h42 <- round(Vg/(Vg + Vi/(reps) + Ve/(reps*hm)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed42 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-21
+asr = asreml(fixed= mean ~ 1, random =  ~id(entry) + ~id(rep) + ~id(original_file), data=photo3, maxit=60, subset= trt=='Untreated')
+summary(asr)$varcomp
+
+hm <- harmonic.mean(summary(photo1$plot_id))
+Vg <- getVariance(asr, 'entry')
+Vi <- getVariance(asr, 'original_file')
+Ve <- getVariance(asr, 'units!R')
+h43 <- round(Vg/(Vg + Vi/(reps) + Ve/(reps*hm)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed43 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-11-03
+asr = asreml(fixed= mean ~ 1, random =  ~id(entry) + ~id(rep) + ~id(original_file), data=photo4, maxit=60, subset= trt=='Untreated')
+summary(asr)$varcomp
+
+hm <- harmonic.mean(summary(photo1$plot_id))
+Vg <- getVariance(asr, 'entry')
+Vi <- getVariance(asr, 'original_file')
+Ve <- getVariance(asr, 'units!R')
+h44 <- round(Vg/(Vg + Vi/(reps) + Ve/(reps*hm)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed44 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+\  
+\  
+\  
+\ 
+
+FULL MODELS: with treatment effect
+
+MODEL: orthomosaic with treatment effect
+
+```{r}
+## 2018-10-03
+asr <- asreml(fixed = mean20181003 ~ 1 + trt, random = ~id(entry) + ~id(trt):(entry) + ~id(trt):(rep) + ~id(trt):(rep):(row) + ~id(trt):(rep):(column) , data=ortho, maxit=20)
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Vd <- getVariance(asr, 'trt:entry')
+Ve <- getVariance(asr, 'units!R')
+h51 <- round(Vg/(Vg + Vd/trts + Ve/(reps*trts)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed51 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-11
+asr <- asreml(fixed = mean20181011 ~ 1 + trt, random = ~id(entry) + ~id(trt):(entry) + ~id(trt):(rep) + ~id(trt):(rep):(row) + ~id(trt):(rep):(column) , data=ortho, maxit=20)
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Vd <- getVariance(asr, 'trt:entry')
+Ve <- getVariance(asr, 'units!R')
+h52 <- round(Vg/(Vg + Vd/trts + Ve/(reps*trts)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed52 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+``` 
+
+```{r}
+## 2018-10-21
+asr <- asreml(fixed = mean20181021 ~ 1 + trt, random = ~id(entry) + ~id(trt):(entry) + ~id(trt):(rep) + ~id(trt):(rep):(row) + ~id(trt):(rep):(column) , data=ortho, maxit=20)
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Vd <- getVariance(asr, 'trt:entry')
+Ve <- getVariance(asr, 'units!R')
+h53 <- round(Vg/(Vg + Vd/trts + Ve/(reps*trts)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed53 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-11-03
+asr <- asreml(fixed = mean20181103 ~ 1 + trt, random = ~id(entry) + ~id(trt):(entry) + ~id(trt):(rep) + ~id(trt):(rep):(row) + ~id(trt):(rep):(column) , data=ortho, maxit=20)
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Vd <- getVariance(asr, 'trt:entry')
+Ve <- getVariance(asr, 'units!R')
+h54 <- round(Vg/(Vg + Vd/trts + Ve/(reps*trts)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed54 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+\  
+\  
+\  
+\ 
+
+MODEL: averaged subsamples with treatment effect
+
+```{r}
+## 2018-10-03
+asr <- asreml(fixed = mean ~ 1 + trt, random = ~id(entry) + ~id(trt):(entry) + ~id(trt):(rep) + ~id(trt):(rep):(row) + ~id(trt):(rep):(column), data=plot.mean1, maxit=20)
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Vd <- getVariance(asr, 'trt:entry')
+Ve <- getVariance(asr, 'units!R')
+h61 <- round(Vg/(Vg + Vd/trts + Ve/(reps*trts)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed61 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-11
+asr <- asreml(fixed = mean ~ 1 + trt, random = ~id(entry) + ~id(trt):(entry) + ~id(trt):(rep) + ~id(trt):(rep):(row) + ~id(trt):(rep):(column), data=plot.mean2, maxit=20)
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Vd <- getVariance(asr, 'trt:entry')
+Ve <- getVariance(asr, 'units!R')
+h62 <- round(Vg/(Vg + Vd/trts + Ve/(reps*trts)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed62 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-21
+asr <- asreml(fixed = mean ~ 1 + trt, random = ~id(entry) + ~id(trt):(entry) + ~id(trt):(rep) + ~id(trt):(rep):(row) + ~id(trt):(rep):(column), data=plot.mean3, maxit=20)
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Vd <- getVariance(asr, 'trt:entry')
+Ve <- getVariance(asr, 'units!R')
+h63 <- round(Vg/(Vg + Vd/trts + Ve/(reps*trts)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed63 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-11-03
+asr <- asreml(fixed = mean ~ 1 + trt, random = ~id(entry) + ~id(trt):(entry) + ~id(trt):(rep) + ~id(trt):(rep):(row) + ~id(trt):(rep):(column), data=plot.mean4, maxit=20)
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Vd <- getVariance(asr, 'trt:entry')
+Ve <- getVariance(asr, 'units!R')
+h64 <- round(Vg/(Vg + Vd/trts + Ve/(reps*trts)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed64 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+\  
+\  
+\  
+\ 
+
+MODEL: orthophoto (with subsamples) with treatment effect
+
+```{r}
+## 2018-10-03
+asr <- asreml(fixed = mean ~ 1 + trt, random =  ~id(entry) + ~id(trt):(entry) + ~id(trt):(rep) + ~id(trt):(rep):(row) + ~id(trt):(rep):(column) + ~id(trt):(rep):(row):(column):(entry), data=photo1, maxit=60, workspace='2gb')
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Vt = getVariance(asr, 'trt:entry')
+Vd = getVariance(asr, 'trt:rep:row:column:entry')
+Ve <- getVariance(asr, 'units!R')
+hm <- harmonic.mean(summary(photo1$plot_id))
+h71 <- round(Vg/(Vg + Vt/trts + Vd/(reps*trts) + Ve/(reps*trts*hm)),3) # heritability 
+
+asr.pv <- predict(asr,classify = 'entry', maxit=100,workspace='2gb')
+avsed71 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-11
+asr <- asreml(fixed = mean ~ 1 + trt, random =  ~id(entry) + ~id(trt):(entry) + ~id(trt):(rep) + ~id(trt):(rep):(row) + ~id(trt):(rep):(column) + ~id(trt):(rep):(row):(column):(entry), data=photo2, maxit=60, workspace='2gb')
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Vt = getVariance(asr, 'trt:entry')
+Vd = getVariance(asr, 'trt:rep:row:column:entry')
+Ve <- getVariance(asr, 'units!R')
+hm <- harmonic.mean(summary(photo1$plot_id))
+h72 <- round(Vg/(Vg + Vt/trts + Vd/(reps*trts) + Ve/(reps*trts*hm)),3) # heritability
+
+#asr.pv <- predict(asr,classify = 'entry')
+#avsed72 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-21
+asr <- asreml(fixed = mean ~ 1 + trt, random =  ~id(entry) + ~id(trt):(entry) + ~id(trt):(rep) + ~id(trt):(rep):(row) + ~id(trt):(rep):(column) + ~id(trt):(rep):(row):(column):(entry), data=photo3, maxit=60, workspace='2gb')
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Vt = getVariance(asr, 'trt:entry')
+Vd = getVariance(asr, 'trt:rep:row:column:entry')
+Ve <- getVariance(asr, 'units!R')
+hm <- harmonic.mean(summary(photo1$plot_id))
+h73 <- round(Vg/(Vg + Vt/trts + Vd/(reps*trts) + Ve/(reps*trts*hm)),3) # heritability
+
+#asr.pv <- predict(asr,classify = 'entry')
+#avsed73 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-11-03
+asr <- asreml(fixed = mean ~ 1 + trt, random =  ~id(entry) + ~id(trt):(entry) + ~id(trt):(rep) + ~id(trt):(rep):(row) + ~id(trt):(rep):(column) + ~id(trt):(rep):(row):(column):(entry), data=photo4, maxit=60, workspace='10gb')
+summary(asr)$varcomp
+
+Vg <- getVariance(asr, 'entry')
+Vt = getVariance(asr, 'trt:entry')
+Vd = getVariance(asr, 'trt:rep:row:column:entry')
+Ve <- getVariance(asr, 'units!R')
+hm <- harmonic.mean(summary(photo1$plot_id))
+h74 <- round(Vg/(Vg + Vt/trts + Vd/(reps*trts) + Ve/(reps*trts*hm)),3) # heritability
+
+#asr.pv <- predict(asr,classify = 'entry')
+#avsed74 <- round(asr.pv$avsed,4)# ave. standard error of difference between the predicted means
+```
+
+\  
+\  
+\  
+\ 
+
+MODEL: orthophoto (with subsampling + image effect) with treatment effect
+
+```{r}
+## 2018-10-03
+asr = asreml(fixed= mean ~ 1 + trt, random =  ~id(entry) + ~id(trt):(entry) + ~id(rep) + ~id(original_file), data=photo1, maxit=60, workspace='2gb')
+summary(asr)$varcomp
+
+hm <- harmonic.mean(summary(photo1$plot_id))
+Vg <- getVariance(asr, 'entry')
+Vi <- getVariance(asr, 'original_file')
+Ve <- getVariance(asr, 'units!R')
+h81 <- round(Vg/(Vg + Vi/(reps) + Ve/(reps*hm)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed81 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-11
+asr = asreml(fixed= mean ~ 1 + trt, random =  ~id(entry) + ~id(trt):(entry) + ~id(rep) + ~id(original_file), data=photo2, maxit=60, workspace='2gb')
+summary(asr)$varcomp
+
+hm <- harmonic.mean(summary(photo1$plot_id))
+Vg <- getVariance(asr, 'entry')
+Vi <- getVariance(asr, 'original_file')
+Ve <- getVariance(asr, 'units!R')
+h82 <- round(Vg/(Vg + Vi/(reps) + Ve/(reps*hm)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed82 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-10-21
+asr = asreml(fixed= mean ~ 1 + trt, random =  ~id(entry) + ~id(trt):(entry) + ~id(rep) + ~id(original_file), data=photo3, maxit=60, workspace='2gb')
+summary(asr)$varcomp
+
+hm <- harmonic.mean(summary(photo1$plot_id))
+Vg <- getVariance(asr, 'entry')
+Vi <- getVariance(asr, 'original_file')
+Ve <- getVariance(asr, 'units!R')
+h83 <- round(Vg/(Vg + Vi/(reps) + Ve/(reps*hm)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed83 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+```{r}
+## 2018-11-03
+asr = asreml(fixed= mean ~ 1 + trt, random =  ~id(entry) + ~id(trt):(entry) + ~id(rep) + ~id(original_file), data=photo4, maxit=60, workspace='2gb')
+summary(asr)$varcomp
+
+hm <- harmonic.mean(summary(photo1$plot_id))
+Vg <- getVariance(asr, 'entry')
+Vi <- getVariance(asr, 'original_file')
+Ve <- getVariance(asr, 'units!R')
+h84 <- round(Vg/(Vg + Vi/(reps) + Ve/(reps*hm)),3) # heritability
+
+asr.pv <- predict(asr,classify = 'entry')
+avsed84 <- round(asr.pv$avsed,4) # ave. standard error of difference between the predicted means
+```
+
+\  
+\  
+\  
+\ 
+
+SUMMARY TABLE - Reduced Models  
+
+|    Date    |       Orthomosaic     |     Ave. subsamples   |   Otrhophoto w/ subsamp  | Otrhophoto w/ subsamp + image |
+|------------|-----------------------|-----------------------|--------------------------|-------------------------------|
+| 2018-10-03 | `r h11` - `r avsed11` | `r h21` - `r avsed21` |   `r h31` - `r avsed31`  |     `r h41` - `r avsed41`     |
+| 2018-10-11 | `r h12` - `r avsed12` | `r h22` - `r avsed22` |   `r h32` - `r avsed32`  |     `r h42` - `r avsed42`     | 
+| 2018-10-21 | `r h13` - `r avsed13` | `r h23` - `r avsed23` |   `r h33` - `r avsed33`  |     `r h43` - `r avsed43`     | 
+| 2018-11-03 | `r h14` - `r avsed14` | `r h24` - `r avsed24` |   `r h34` - `r avsed34`  |     `r h44` - `r avsed44`     | 
+
+SUMMARY TABLE - Full Models      
+
+|    Date    |       Orthomosaic     |     Ave. subsamples   |   Otrhophoto w/ subsamp   | Otrhophoto w/ subsamp + image |
+|------------|-----------------------|-----------------------|---------------------------|-------------------------------|
+| 2018-10-03 | `r h51` - `r avsed51` | `r h61` - `r avsed61` |    `r h71` - r avsed71    |      `r h81` - `r avsed81`    |
+| 2018-10-11 | `r h52` - `r avsed52` | `r h62` - `r avsed62` |    `r h72` - r avsed72    |      `r h82` - `r avsed82`    | 
+| 2018-10-21 | `r h53` - `r avsed53` | `r h63` - `r avsed63` |    `r h73` - r avsed73    |      `r h83` - `r avsed83`    | 
+| 2018-11-03 | `r h54` - `r avsed54` | `r h64` - `r avsed64` |    `r h74` - r avsed74    |      `r h84` - `r avsed84`    |
